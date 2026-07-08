@@ -1,6 +1,6 @@
 {
   "name": "@pynkstudio/mailapp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reusable mail application package for PynkStudio projects.",
   "private": false,
   "type": "module",
@@ -23,6 +23,26 @@
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js"
     },
+    "./next/routes/send": {
+      "types": "./dist/next/routes/send.d.ts",
+      "import": "./dist/next/routes/send.js"
+    },
+    "./next/routes/signature": {
+      "types": "./dist/next/routes/signature.d.ts",
+      "import": "./dist/next/routes/signature.js"
+    },
+    "./next/routes/inbound-webhook": {
+      "types": "./dist/next/routes/inbound-webhook.d.ts",
+      "import": "./dist/next/routes/inbound-webhook.js"
+    },
+    "./server": {
+      "types": "./dist/server/runtime.d.ts",
+      "import": "./dist/server/runtime.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "import": "./dist/email/index.js"
+    },
     "./supabase": {
       "types": "./dist/supabase/index.d.ts",
       "import": "./dist/supabase/index.js"
@@ -40,6 +60,7 @@
   },
   "peerDependencies": {
     "@supabase/supabase-js": "^2.0.0",
+    "lucide-react": "^0.475.0",
     "next": ">=15",
     "react": ">=19",
     "react-dom": ">=19"
@@ -47,6 +68,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
+    "lucide-react": "^0.475.0",
     "typescript": "^5.7.0"
   }
 }

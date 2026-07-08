@@ -1,10 +1,9 @@
-export type MailAppProps = {
-  tenantId?: string;
-  mode?: "platform" | "tenant";
-};
-
-export function MailApp(_props: MailAppProps): never {
-  throw new Error(
-    "@pynkstudio/mailapp/react is installed, but the React UI has not been extracted yet. Use the host app implementation until the UI migration is completed.",
-  );
-}
+export * from "../components/mail-app.js";
+export * from "../components/mail-launcher.js";
+export * from "../components/inbox-page.js";
+export * from "../components/mail-sidebar.js";
+export * from "../components/email-list.js";
+export * from "../components/email-detail.js";
+export * from "../components/sent-detail.js";
+export * from "../components/compose-drawer.js";
+export * from "../components/tenant-mail-device-settings.js";
