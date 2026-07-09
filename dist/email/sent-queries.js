@@ -1,7 +1,7 @@
 "use server";
 import { createSupabaseAdminClient } from "../server/runtime";
 const PAGE_SIZE = 30;
-export const SENT_DELIVERY_ISSUE_STATUSES = ["delivery_delayed", "bounced", "complained"];
+const SENT_DELIVERY_ISSUE_STATUSES = ["delivery_delayed", "bounced", "complained"];
 export async function getSentEmails(brand, page = 1, scope, filter) {
     const admin = createSupabaseAdminClient();
     const from = (page - 1) * PAGE_SIZE;

@@ -6,7 +6,7 @@ import type { TenantEmailScope } from "./tenant-email-scope";
 
 const PAGE_SIZE = 30;
 
-export const SENT_DELIVERY_ISSUE_STATUSES = ["delivery_delayed", "bounced", "complained"] as const;
+const SENT_DELIVERY_ISSUE_STATUSES = ["delivery_delayed", "bounced", "complained"] as const;
 
 export type SentDeliveryIssueStatus = typeof SENT_DELIVERY_ISSUE_STATUSES[number];
 
