@@ -1,5 +1,7 @@
 import type { InboundEmailBrand } from "./inbound-types";
 import type { TenantEmailScope } from "./tenant-email-scope";
+export declare const SENT_DELIVERY_ISSUE_STATUSES: readonly ["delivery_delayed", "bounced", "complained"];
+export type SentDeliveryIssueStatus = typeof SENT_DELIVERY_ISSUE_STATUSES[number];
 export type SentEmail = {
     id: string;
     created_at: string;
@@ -22,6 +24,9 @@ export type SentPage = {
     page: number;
     pageSize: number;
 };
-export declare function getSentEmails(brand?: InboundEmailBrand | "all" | "support", page?: number, scope?: TenantEmailScope): Promise<SentPage>;
+export declare function getSentEmails(brand?: InboundEmailBrand | "all" | "support", page?: number, scope?: TenantEmailScope, filter?: {
+    onlyDeliveryIssues?: boolean;
+}): Promise<SentPage>;
+export declare function getSentDeliveryIssueCount(brand?: InboundEmailBrand | "all" | "support", scope?: TenantEmailScope): Promise<number>;
 export declare function getSentEmailById(id: string): Promise<SentEmail | null>;
 //# sourceMappingURL=sent-queries.d.ts.map

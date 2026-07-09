@@ -313,6 +313,73 @@ async function handleInbound(payload, svc) {
     return NextResponse.json({ ok: true, type: "inbound", brand });
 }
 // ─── Handler tracking events ──────────────────────────────────────────────────
+function deliveryIssuePushText(event) {
+    const to = Array.isArray(event.data.to) ? event.data.to.join(", ") : String(event.data.to ?? "");
+    const subject = event.data.subject || "(nessun oggetto)";
+    if (event.type === "email.delivery_delayed") {
+        return {
+            title: "Consegna email in ritardo",
+            body: `${subject} · ${to}`,
+        };
+    }
+    if (event.type === "email.bounced") {
+        return {
+            title: "Email rimbalzata",
+            body: `${event.data.bounce?.message ?? subject} · ${to}`,
+        };
+    }
+    if (event.type === "email.complained") {
+        return {
+            title: "Email segnata come spam",
+            body: `${subject} · ${to}`,
+        };
+    }
+    return null;
+}
+async function notifyDeliveryIssue(event, svc) {
+    const push = deliveryIssuePushText(event);
+    if (!push || !event.data.email_id)
+        return;
+    const { data: sent } = await svc
+        .from("sent_emails")
+        .select("id, tenant_id, sent_by_user_id")
+        .eq("resend_message_id", event.data.email_id)
+        .maybeSingle();
+    const row = sent;
+    const url = row?.tenant_id ? `/gestione/${row.tenant_id}/mail` : "/admin/inbox";
+    const payload = {
+        title: push.title,
+        body: push.body,
+        url,
+        tag: `mail-delivery-issue-${event.data.email_id}-${event.type}`,
+    };
+    if (row?.sent_by_user_id) {
+        const { data: siteadmin } = await svc
+            .from("siteadmin")
+            .select("id")
+            .eq("user_id", row.sent_by_user_id)
+            .eq("enabled", true)
+            .maybeSingle();
+        const siteadminId = siteadmin?.id;
+        if (siteadminId) {
+            await sendWebPushToSiteadmin(siteadminId, payload).catch((err) => {
+                console.warn("[webhook:tracking] push delivery issue siteadmin fallita:", err);
+            });
+        }
+    }
+    if (row?.tenant_id) {
+        const { data: subscriptions } = await svc
+            .from("push_subscriptions")
+            .select("id")
+            .eq("tenant_id", row.tenant_id);
+        const ids = (subscriptions ?? []).map((subscription) => subscription.id);
+        if (ids.length) {
+            await sendWebPushToSubscriptions(ids, payload).catch((err) => {
+                console.warn("[webhook:tracking] push delivery issue tenant fallita:", err);
+            });
+        }
+    }
+}
 async function handleTracking(event, svc) {
     const { email_id, from, to, subject, click, bounce, opened_at } = event.data;
     const toAddress = Array.isArray(to) ? to[0] : to;
@@ -345,6 +412,9 @@ async function handleTracking(event, svc) {
             .from("sent_emails")
             .update({ status: newStatus })
             .eq("resend_message_id", email_id);
+        if (event.type === "email.delivery_delayed" || event.type === "email.bounced" || event.type === "email.complained") {
+            await notifyDeliveryIssue(event, svc);
+        }
     }
     if (email_id) {
         const newsletterDb = svc;

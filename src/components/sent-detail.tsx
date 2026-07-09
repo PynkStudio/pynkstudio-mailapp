@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ArrowLeft, Link2, Search, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Link2, Search, X } from "lucide-react";
 import { cn } from "../utils";
 import { getTrackingEventsForEmail } from "../email/tracking-queries";
 import { TRACKING_EVENT_LABELS, TRACKING_EVENT_COLORS } from "../email/tracking-types";
@@ -47,6 +47,30 @@ function fmtDate(iso: string) {
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
+function deliveryIssueCopy(status: SentEmail["status"], events: TrackingEvent[]): { title: string; body: string } | null {
+  const bounceEvent = [...events].reverse().find((event) => event.event_type === "email.bounced" || event.event_type === "email.complained");
+  const bounce = bounceEvent?.metadata?.bounce as { message?: string; type?: string } | undefined;
+  if (status === "delivery_delayed") {
+    return {
+      title: "Consegna in ritardo",
+      body: "Resend ha segnalato un ritardo. La consegna potrebbe riuscire più tardi, ma conviene controllare il destinatario se resta in questo stato.",
+    };
+  }
+  if (status === "bounced") {
+    return {
+      title: "Email rimbalzata",
+      body: bounce?.message ?? "Il server del destinatario ha rifiutato il messaggio. Controlla l'indirizzo o usa un canale alternativo.",
+    };
+  }
+  if (status === "complained") {
+    return {
+      title: "Segnata come spam",
+      body: "Il destinatario o il provider ha classificato il messaggio come spam. Evita nuovi invii finché non hai verificato il contatto.",
+    };
+  }
+  return null;
 }
 
 // ─── LeadPanel ────────────────────────────────────────────────────────────────
@@ -232,6 +256,7 @@ export function SentDetail({ email, onClose }: Props) {
   const displayFrom = email.from_name
     ? `${email.from_name} <${email.from_address}>`
     : email.from_address;
+  const issue = deliveryIssueCopy(email.status, events);
 
   return (
     <div className="flex h-full flex-col">
@@ -266,6 +291,19 @@ export function SentDetail({ email, onClose }: Props) {
           <span>{fmtDate(email.created_at)}</span>
         </div>
       </div>
+
+      {/* Tracking timeline */}
+      {issue && (
+        <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-red-800">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">{issue.title}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-red-700">{issue.body}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tracking timeline */}
       {events.length > 0 && (

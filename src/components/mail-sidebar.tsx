@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Archive,
+  AlertTriangle,
   Briefcase,
   Clapperboard,
   Heart,
@@ -21,7 +22,7 @@ import {
 import { cn } from "../utils";
 import type { InboundEmailBrand } from "../email/inbound-types";
 
-export type MailView = "inbox" | "unread" | "mine" | "sent" | "starred" | "spam" | "archived";
+export type MailView = "inbox" | "unread" | "mine" | "sent" | "issues" | "starred" | "spam" | "archived";
 export type BrandFilter = InboundEmailBrand | "all" | "support";
 
 type Props = {
@@ -29,6 +30,7 @@ type Props = {
   brand: BrandFilter;
   unreadCount: number;
   unreadMine: number;
+  deliveryIssueCount?: number;
   canCompose: boolean;
   mode?: "platform" | "tenant";
   /** Se false nasconde la vista "Le mie" (tenant senza filtro dispositivo configurato). Default true. */
@@ -45,6 +47,7 @@ const VIEWS: { value: MailView; label: string; icon: React.ElementType }[] = [
   { value: "unread",   label: "Non lette", icon: MailOpen },
   { value: "mine",     label: "Le mie",    icon: UserCheck },
   { value: "sent",     label: "Inviata",   icon: Send },
+  { value: "issues",   label: "Problemi",  icon: AlertTriangle },
   { value: "starred",  label: "Stellate",  icon: Star },
   { value: "spam",     label: "Spam",      icon: ShieldAlert },
   { value: "archived", label: "Archivio",  icon: Archive },
@@ -59,7 +62,7 @@ const BRANDS: { value: BrandFilter; label: string; icon: React.ElementType }[] =
   { value: "support",    label: "Supporto",    icon: LifeBuoy },
 ];
 
-export function MailSidebar({ view, brand, unreadCount, unreadMine, canCompose, mode = "platform", mineAvailable = true, onViewChange, onBrandChange, onCompose, onOpenDeviceSettings }: Props) {
+export function MailSidebar({ view, brand, unreadCount, unreadMine, deliveryIssueCount = 0, canCompose, mode = "platform", mineAvailable = true, onViewChange, onBrandChange, onCompose, onOpenDeviceSettings }: Props) {
   const views = VIEWS.filter((item) => item.value !== "mine" || mineAvailable);
   return (
     <div className="flex h-full w-52 shrink-0 flex-col border-r border-black/10 bg-white/55 p-3 backdrop-blur-xl">
@@ -106,6 +109,14 @@ export function MailSidebar({ view, brand, unreadCount, unreadMine, canCompose, 
                 view === "mine" ? "bg-[var(--ma-accent)]/10 text-[var(--ma-accent)]" : "bg-[var(--ma-accent)] text-white",
               )}>
                 {unreadMine}
+              </span>
+            )}
+            {value === "issues" && deliveryIssueCount > 0 && (
+              <span className={cn(
+                "ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold",
+                view === "issues" ? "bg-red-50 text-red-600" : "bg-red-500 text-white",
+              )}>
+                {deliveryIssueCount}
               </span>
             )}
           </button>

@@ -1,7 +1,7 @@
 "use client";
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ArrowLeft, Link2, Search, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Link2, Search, X } from "lucide-react";
 import { cn } from "../utils";
 import { getTrackingEventsForEmail } from "../email/tracking-queries";
 import { TRACKING_EVENT_LABELS, TRACKING_EVENT_COLORS } from "../email/tracking-types";
@@ -33,6 +33,29 @@ function fmtDate(iso) {
 }
 function fmtTime(iso) {
     return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+function deliveryIssueCopy(status, events) {
+    const bounceEvent = [...events].reverse().find((event) => event.event_type === "email.bounced" || event.event_type === "email.complained");
+    const bounce = bounceEvent?.metadata?.bounce;
+    if (status === "delivery_delayed") {
+        return {
+            title: "Consegna in ritardo",
+            body: "Resend ha segnalato un ritardo. La consegna potrebbe riuscire più tardi, ma conviene controllare il destinatario se resta in questo stato.",
+        };
+    }
+    if (status === "bounced") {
+        return {
+            title: "Email rimbalzata",
+            body: bounce?.message ?? "Il server del destinatario ha rifiutato il messaggio. Controlla l'indirizzo o usa un canale alternativo.",
+        };
+    }
+    if (status === "complained") {
+        return {
+            title: "Segnata come spam",
+            body: "Il destinatario o il provider ha classificato il messaggio come spam. Evita nuovi invii finché non hai verificato il contatto.",
+        };
+    }
+    return null;
 }
 function LeadPanel({ emailId, linkedLeadId, autoMatches, onLinked }) {
     const [isPending, startTransition] = useTransition();
@@ -127,7 +150,8 @@ export function SentDetail({ email, onClose }) {
     const displayFrom = email.from_name
         ? `${email.from_name} <${email.from_address}>`
         : email.from_address;
-    return (_jsxs("div", { className: "flex h-full flex-col", children: [_jsxs("div", { className: "flex items-center gap-2 border-b border-[var(--ma-line)] px-5 py-3", children: [_jsxs("button", { onClick: onClose, className: "menuary-admin-nav-link mr-2 !w-auto gap-1.5 !px-2 !py-1.5 text-sm", children: [_jsx(ArrowLeft, { size: 15 }), _jsx("span", { className: "hidden sm:inline", children: "Indietro" })] }), _jsx("div", { className: "flex-1" }), _jsx("button", { onClick: onClose, className: "menuary-admin-nav-link !w-auto !px-2 !py-1.5 lg:hidden", children: _jsx(X, { size: 16 }) })] }), _jsxs("div", { className: "border-b border-[var(--ma-line)] px-5 py-4", children: [_jsxs("div", { className: "mb-2 flex flex-wrap items-start gap-2", children: [_jsx("h2", { className: "flex-1 text-lg font-semibold text-[var(--ma-ink)] leading-snug", children: email.subject || "(nessun oggetto)" }), _jsx("span", { className: cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide", STATUS_BADGE[email.status]), children: STATUS_LABELS[email.status] })] }), _jsxs("div", { className: "flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--ma-muted)]", children: [_jsxs("span", { children: [_jsx("span", { className: "font-medium text-[var(--ma-ink)]", children: "Da:" }), " ", displayFrom] }), _jsxs("span", { children: [_jsx("span", { className: "font-medium text-[var(--ma-ink)]", children: "A:" }), " ", email.to_addresses.join(", ")] }), _jsx("span", { children: fmtDate(email.created_at) })] })] }), events.length > 0 && (_jsxs("div", { className: "border-b border-[var(--ma-line)] px-5 py-3", children: [_jsx("p", { className: "mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--ma-muted)]", children: "Tracking" }), _jsx("div", { className: "flex flex-wrap gap-2", children: events.map((ev) => {
+    const issue = deliveryIssueCopy(email.status, events);
+    return (_jsxs("div", { className: "flex h-full flex-col", children: [_jsxs("div", { className: "flex items-center gap-2 border-b border-[var(--ma-line)] px-5 py-3", children: [_jsxs("button", { onClick: onClose, className: "menuary-admin-nav-link mr-2 !w-auto gap-1.5 !px-2 !py-1.5 text-sm", children: [_jsx(ArrowLeft, { size: 15 }), _jsx("span", { className: "hidden sm:inline", children: "Indietro" })] }), _jsx("div", { className: "flex-1" }), _jsx("button", { onClick: onClose, className: "menuary-admin-nav-link !w-auto !px-2 !py-1.5 lg:hidden", children: _jsx(X, { size: 16 }) })] }), _jsxs("div", { className: "border-b border-[var(--ma-line)] px-5 py-4", children: [_jsxs("div", { className: "mb-2 flex flex-wrap items-start gap-2", children: [_jsx("h2", { className: "flex-1 text-lg font-semibold text-[var(--ma-ink)] leading-snug", children: email.subject || "(nessun oggetto)" }), _jsx("span", { className: cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide", STATUS_BADGE[email.status]), children: STATUS_LABELS[email.status] })] }), _jsxs("div", { className: "flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--ma-muted)]", children: [_jsxs("span", { children: [_jsx("span", { className: "font-medium text-[var(--ma-ink)]", children: "Da:" }), " ", displayFrom] }), _jsxs("span", { children: [_jsx("span", { className: "font-medium text-[var(--ma-ink)]", children: "A:" }), " ", email.to_addresses.join(", ")] }), _jsx("span", { children: fmtDate(email.created_at) })] })] }), issue && (_jsx("div", { className: "border-b border-red-200 bg-red-50 px-5 py-3 text-red-800", children: _jsxs("div", { className: "flex items-start gap-2", children: [_jsx(AlertTriangle, { size: 17, className: "mt-0.5 shrink-0" }), _jsxs("div", { children: [_jsx("p", { className: "text-sm font-semibold", children: issue.title }), _jsx("p", { className: "mt-0.5 text-xs leading-relaxed text-red-700", children: issue.body })] })] }) })), events.length > 0 && (_jsxs("div", { className: "border-b border-[var(--ma-line)] px-5 py-3", children: [_jsx("p", { className: "mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--ma-muted)]", children: "Tracking" }), _jsx("div", { className: "flex flex-wrap gap-2", children: events.map((ev) => {
                             const label = TRACKING_EVENT_LABELS[ev.event_type] ?? ev.event_type;
                             const color = TRACKING_EVENT_COLORS[ev.event_type] ?? "bg-gray-50 text-gray-600";
                             const meta = ev.metadata;

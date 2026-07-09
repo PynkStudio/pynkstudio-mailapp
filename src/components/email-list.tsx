@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, MessageSquareText, Paperclip, Star, Eye, MousePointerClick } from "lucide-react";
+import { AlertTriangle, Inbox, MessageSquareText, Paperclip, Star, Eye, MousePointerClick } from "lucide-react";
 import { cn } from "../utils";
 import type { InboundEmail } from "../email/inbound-types";
 import type { TrackingSummary } from "../email/tracking-queries";
@@ -10,6 +10,7 @@ type Props = {
   selectedId: string | null;
   onSelect: (email: InboundEmail) => void;
   trackingMap?: Record<string, TrackingSummary>;
+  sentStatusMap?: Record<string, string | null | undefined>;
   threadCountMap?: Record<string, number>;
   threadUnreadMap?: Record<string, number>;
   threadAttachmentMap?: Record<string, number>;
@@ -41,7 +42,14 @@ function initialFor(email: InboundEmail): string {
   return src.charAt(0).toUpperCase();
 }
 
-export function EmailList({ emails, selectedId, onSelect, trackingMap, threadCountMap, threadUnreadMap, threadAttachmentMap }: Props) {
+function deliveryIssueLabel(status: string | null | undefined): string | null {
+  if (status === "delivery_delayed") return "Ritardo";
+  if (status === "bounced") return "Rimbalzata";
+  if (status === "complained") return "Spam";
+  return null;
+}
+
+export function EmailList({ emails, selectedId, onSelect, trackingMap, sentStatusMap, threadCountMap, threadUnreadMap, threadAttachmentMap }: Props) {
   if (emails.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center text-[var(--ma-muted)]">
@@ -61,6 +69,7 @@ export function EmailList({ emails, selectedId, onSelect, trackingMap, threadCou
         const isUnread = threadUnreadCount > 0;
         const brand = BRAND_STYLE[email.brand] ?? { bg: "bg-gray-400", ring: "ring-gray-300" };
         const tracking = email.message_id && trackingMap ? trackingMap[email.message_id] : undefined;
+        const deliveryIssue = deliveryIssueLabel(sentStatusMap?.[email.id]);
 
         return (
           <li key={email.id} className="relative">
@@ -79,6 +88,7 @@ export function EmailList({ emails, selectedId, onSelect, trackingMap, threadCou
                   ? "bg-white shadow-[0_14px_36px_rgba(15,23,42,0.10)] ring-1 ring-black/5"
                   : "bg-transparent",
                 isUnread && "pl-[calc(0.875rem+3px)]",
+                deliveryIssue && "bg-red-50/60 ring-1 ring-red-100",
               )}
             >
               <div className="flex items-start gap-3">
@@ -130,6 +140,12 @@ export function EmailList({ emails, selectedId, onSelect, trackingMap, threadCou
                       <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--ma-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--ma-muted)]">
                         <MessageSquareText size={10} />
                         {threadCount}
+                      </span>
+                    )}
+                    {deliveryIssue && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                        <AlertTriangle size={10} />
+                        {deliveryIssue}
                       </span>
                     )}
                   </div>

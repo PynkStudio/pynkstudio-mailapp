@@ -7,6 +7,7 @@ This package contains the shared mail UI and runtime logic currently used by Men
 - inbox, sent mail, unread/mine/starred/spam/archive filters;
 - message detail, thread grouping, attachments and HTML rendering;
 - compose drawer with sender selection, signatures and attachments;
+- delivery issue detection for delayed, bounced and complained messages;
 - tenant device filters and push target resolution;
 - Supabase queries/server actions for inbound, sent, tracking, signatures and lead links;
 - Next.js route handlers for send, signature and Resend inbound/tracking webhooks;
@@ -140,4 +141,3 @@ Supabase migrations are shipped in `migrations/`. Consumers must apply them expl
 6. Update consumer repos to the new tarball URL.
 
 `dist` is intentionally committed because GitHub tarball installs do not run the package build before resolving exported `dist/*` entrypoints.
-

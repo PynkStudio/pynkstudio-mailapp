@@ -12,7 +12,7 @@ import { ComposeDrawer, type ComposeAttachment } from "./compose-drawer";
 import { TenantMailDeviceSettings } from "./tenant-mail-device-settings";
 
 import { getInboundEmails, getTenantInboxUnreadCount, markEmailRead } from "../email/inbound-queries";
-import { getSentEmails } from "../email/sent-queries";
+import { getSentDeliveryIssueCount, getSentEmails } from "../email/sent-queries";
 import { getTrackingSummariesForEmails } from "../email/tracking-queries";
 import type { TrackingSummary } from "../email/tracking-queries";
 import { getDeviceId } from "../push/device-id";
@@ -29,6 +29,7 @@ type Props = {
   initialSent: SentPage;
   unreadTotal: number;
   unreadMine: number;
+  deliveryIssueCount?: number;
   currentSiteadminId: string | null;
   canCompose: boolean;
   mode?: "platform" | "tenant";
@@ -182,6 +183,7 @@ export function MailApp({
   initialSent,
   unreadTotal,
   unreadMine,
+  deliveryIssueCount = 0,
   currentSiteadminId,
   canCompose,
   mode = "platform",
@@ -197,6 +199,7 @@ export function MailApp({
   const [sent, setSent]         = useState(initialSent);
   const [unread, setUnread]     = useState(unreadTotal);
   const [unreadMyCount, setUnreadMyCount] = useState(unreadMine);
+  const [deliveryIssues, setDeliveryIssues] = useState(deliveryIssueCount);
   const [selectedInbound, setSelectedInbound] = useState<InboundEmail | null>(null);
   const [selectedSent, setSelectedSent]       = useState<SentEmail | null>(null);
   const [composeOpen, setComposeOpen]         = useState(false);
@@ -230,32 +233,36 @@ export function MailApp({
     try {
       if (mode === "tenant") {
         if (!scope) return;
-        const [inboxUnread, mineUnread] = await Promise.all([
+        const [inboxUnread, mineUnread, issueCount] = await Promise.all([
           getTenantInboxUnreadCount(scope),
           deviceFilter?.localParts.length ? getTenantInboxUnreadCount(scope, deviceFilter.localParts) : Promise.resolve(0),
+          getSentDeliveryIssueCount(brand, scope),
         ]);
         setUnread(inboxUnread);
         setUnreadMyCount(mineUnread);
+        setDeliveryIssues(issueCount);
         return;
       }
-      const [inboxAll, mineAll] = await Promise.all([
+      const [inboxAll, mineAll, issueCount] = await Promise.all([
         getInboundEmails({ brand: "all", scope }),
         currentSiteadminId
           ? getInboundEmails({ brand: "all", assignedToUserId: currentSiteadminId, scope })
           : Promise.resolve({ emails: [], total: 0, page: 1, pageSize: 0 } as InboxPage),
+        getSentDeliveryIssueCount(brand, scope),
       ]);
       setUnread(inboxAll.emails.filter((e) => !e.read).length);
       setUnreadMyCount(mineAll.emails.filter((e) => !e.read).length);
+      setDeliveryIssues(issueCount);
     } catch {
       /* noop */
     }
-  }, [currentSiteadminId, scope, mode, deviceFilter]);
+  }, [currentSiteadminId, scope, mode, deviceFilter, brand]);
 
   const reload = useCallback(
     (v: MailView = view, b: BrandFilter = brand) => {
       startTransition(async () => {
-        if (v === "sent") {
-          const fresh = await getSentEmails(b, 1, scope);
+        if (v === "sent" || v === "issues") {
+          const fresh = await getSentEmails(b, 1, scope, { onlyDeliveryIssues: v === "issues" });
           setSent(fresh);
           const ids = fresh.emails.map((e) => e.resend_message_id).filter(Boolean) as string[];
           const tracking = await getTrackingSummariesForEmails(ids);
@@ -371,7 +378,7 @@ export function MailApp({
     setComposeOpen(true);
   }
 
-  const isSentView = view === "sent";
+  const isSentView = view === "sent" || view === "issues";
   const inboundThreads = isSentView ? [] : groupInboundThreads(inbox.emails);
   const threadByLatestId = Object.fromEntries(inboundThreads.map((thread) => [thread.latest.id, thread.items]));
   const threadCountMap = Object.fromEntries(inboundThreads.map((thread) => [thread.latest.id, thread.items.length]));
@@ -380,6 +387,7 @@ export function MailApp({
   const listEmails = isSentView
     ? sent.emails.map(sentToListItem)
     : inboundThreads.map((thread) => thread.latest);
+  const sentStatusMap = Object.fromEntries(sent.emails.map((email) => [email.id, email.status]));
 
   const selectedListId = isSentView ? selectedSent?.id ?? null : selectedInbound?.id ?? null;
   const showDetail = isSentView ? selectedSent !== null : selectedInbound !== null;
@@ -395,6 +403,7 @@ export function MailApp({
               brand={brand}
               unreadCount={unread}
               unreadMine={unreadMyCount}
+              deliveryIssueCount={deliveryIssues}
               canCompose={canCompose}
               mode={mode}
               mineAvailable={mineAvailable}
@@ -414,7 +423,7 @@ export function MailApp({
             <div className="flex items-center justify-between border-b border-black/10 bg-white/45 px-4 py-2.5 backdrop-blur-xl">
               {/* Mobile: filtri brand + vista */}
               <div className="flex flex-wrap gap-1 lg:hidden">
-                {(["inbox","unread","mine","sent","starred","spam","archived"] as MailView[])
+                {(["inbox","unread","mine","sent","issues","starred","spam","archived"] as MailView[])
                   .filter((v) => v !== "mine" || mineAvailable)
                   .map((v) => (
                   <button
@@ -427,7 +436,7 @@ export function MailApp({
                         : "bg-[var(--ma-surface)] text-[var(--ma-muted)]",
                     )}
                   >
-                    {v === "inbox" ? "Arrivo" : v === "unread" ? "Non lette" : v === "mine" ? "Le mie" : v === "sent" ? "Inviata" : v === "starred" ? "Stellate" : v === "spam" ? "Spam" : "Archivio"}
+                    {v === "inbox" ? "Arrivo" : v === "unread" ? "Non lette" : v === "mine" ? "Le mie" : v === "sent" ? "Inviata" : v === "issues" ? "Problemi" : v === "starred" ? "Stellate" : v === "spam" ? "Spam" : "Archivio"}
                   </button>
                 ))}
                 {mode === "platform" && (["all","pynkstudio","menuary","bizery","orpheo","support"] as BrandFilter[]).map((b) => (
@@ -446,7 +455,7 @@ export function MailApp({
                 ))}
               </div>
               <p className="hidden text-xs font-medium text-[var(--ma-muted)] lg:block">
-                {isSentView ? sent.total : `${inboundThreads.length} thread`} · {isSentView ? "email" : `${inbox.total} email`}
+                {isSentView ? sent.total : `${inboundThreads.length} thread`} · {isSentView ? (view === "issues" ? "problemi" : "email") : `${inbox.total} email`}
               </p>
               <div className="flex items-center gap-1">
                 {mode === "tenant" && tenantId && (
@@ -475,6 +484,7 @@ export function MailApp({
                 selectedId={selectedListId}
                 onSelect={isSentView ? handleSelectSent : handleSelectInbound}
                 trackingMap={isSentView ? sentTrackingMap : undefined}
+                sentStatusMap={isSentView ? sentStatusMap : undefined}
                 threadCountMap={isSentView ? undefined : threadCountMap}
                 threadUnreadMap={isSentView ? undefined : threadUnreadMap}
                 threadAttachmentMap={isSentView ? undefined : threadAttachmentMap}
@@ -539,7 +549,7 @@ export function MailApp({
         initialBody={composePrefill.body}
         initialAttachments={composePrefill.attachments}
         onClose={() => setComposeOpen(false)}
-        onSent={() => { if (view === "sent") reload("sent", brand); }}
+        onSent={() => { if (view === "sent" || view === "issues") reload(view, brand); }}
       />
 
       {mode === "tenant" && tenantId && (

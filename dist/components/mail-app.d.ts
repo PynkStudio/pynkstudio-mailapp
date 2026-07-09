@@ -6,6 +6,7 @@ type Props = {
     initialSent: SentPage;
     unreadTotal: number;
     unreadMine: number;
+    deliveryIssueCount?: number;
     currentSiteadminId: string | null;
     canCompose: boolean;
     mode?: "platform" | "tenant";
@@ -15,6 +16,6 @@ type Props = {
     tenantFromAddress?: string;
     currentUserEmail?: string | null;
 };
-export declare function MailApp({ initialInbox, initialSent, unreadTotal, unreadMine, currentSiteadminId, canCompose, mode, scope, tenantId, tenantName, tenantFromAddress, currentUserEmail, }: Props): import("react").JSX.Element;
+export declare function MailApp({ initialInbox, initialSent, unreadTotal, unreadMine, deliveryIssueCount, currentSiteadminId, canCompose, mode, scope, tenantId, tenantName, tenantFromAddress, currentUserEmail, }: Props): import("react").JSX.Element;
 export {};
 //# sourceMappingURL=mail-app.d.ts.map
