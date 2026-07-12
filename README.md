@@ -90,6 +90,65 @@ Available route exports:
 - `@pynkstudio/mailapp/next/routes/signature`
 - `@pynkstudio/mailapp/next/routes/inbound-webhook`
 
+### Resend inbound body hydration
+
+Do not persist only the raw `email.received` webhook payload as the source of truth for inbound email content.
+Resend received-email webhooks can be lightweight and may not include the full plain-text body, HTML body,
+headers or attachment data. If a consumer stores only `payload.data.text` / `payload.data.html`, messages can
+appear in the UI as empty even though the original email had content.
+
+The package `@pynkstudio/mailapp/next/routes/inbound-webhook` already handles this for Next.js consumers:
+
+1. read the received email id from `data.email_id`, `data.id` or the unwrapped payload;
+2. call Resend's Received Emails API, `GET /emails/receiving/:id`, using `RESEND_API_KEY`;
+3. merge the received-email response into the webhook payload before inserting `inbound_emails`;
+4. fetch attachment metadata/content from `GET /emails/receiving/:id/attachments` when available.
+
+For custom route handlers that do not use the exported Next.js route (for example Vercel Functions, Express,
+Vite server adapters or other non-Next hosts), copy the same pattern before writing to Supabase:
+
+```ts
+async function retrieveReceivedEmail(emailId: string) {
+  const response = await fetch(
+    `https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}?html_format=cid`,
+    { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` } },
+  );
+
+  if (!response.ok) return null;
+  return response.json() as Promise<{
+    from?: string;
+    to?: string[];
+    subject?: string;
+    text?: string | null;
+    html?: string | null;
+    headers?: unknown;
+    attachments?: unknown[];
+    message_id?: string | null;
+  }>;
+}
+```
+
+Then prefer the retrieved fields over the webhook fields:
+
+```ts
+const receivedEmailId = data.email_id ?? data.id ?? data.email?.id;
+const received = receivedEmailId ? await retrieveReceivedEmail(receivedEmailId) : null;
+
+await supabase.from("inbound_emails").insert({
+  message_id: received?.message_id ?? data.message_id ?? null,
+  from_address: parseEmailAddress(received?.from ?? data.from).address,
+  to_addresses: received?.to ?? data.to,
+  subject: received?.subject ?? data.subject ?? "(nessun oggetto)",
+  text_body: received?.text ?? data.text ?? null,
+  html_body: received?.html ?? data.html ?? null,
+  headers: normalizeHeaders(received?.headers ?? data.headers),
+  attachments: received?.attachments ?? data.attachments ?? [],
+});
+```
+
+When rendering inbound messages, prefer `text_body` when present if the UI needs to preserve quoted reply levels
+(`>`, `>>`, etc.). Use sanitized `html_body` as the fallback for HTML-only messages.
+
 ## Styling
 
 The host app owns the visual theme. The mailapp uses CSS custom properties:
