@@ -13,6 +13,21 @@ This package contains the shared mail UI and runtime logic currently used by Men
 - Next.js route handlers for send, signature and Resend inbound/tracking webhooks;
 - Supabase migrations required by the mailapp.
 
+Since `0.4.0` it also contains the framework-agnostic mailbox runtime (`/mailbox`,
+`/mailbox/server`, `/node`), extracted from the BITE project:
+
+- quoted-reply collapsing, sender-name inference from the signature and preview text;
+- RFC 5322 threading — `Message-ID`/`In-Reply-To`/`References` normalization, thread
+  key resolution and a deterministic subject+participants fallback for legacy rows;
+- diacritic-insensitive mailbox search across sender, recipients, subject, body,
+  status and the *rendered* date formats;
+- Svix/Resend webhook signature verification, constant-time and fail-closed;
+- Resend I/O — inbound content retrieval, expiring-attachment re-signing, outbound
+  send with threading headers;
+- inbound routing to a specific admin by mailbox alias, with push notify/revoke;
+- listing with view filters, counts, pagination and legacy-body backfill;
+- `(req, res)` handlers for hosts that are not Next.js.
+
 The package provides behavior and structure. The host app remains responsible for auth, tenant resolution, Supabase clients, push notification delivery and CSS theme tokens.
 
 ## Installation
@@ -73,6 +88,82 @@ import "@/lib/mailapp-runtime";
 import { MailApp } from "@pynkstudio/mailapp/react";
 import { getInboundEmails } from "@pynkstudio/mailapp/email";
 ```
+
+## Mailbox Runtime (non-Next hosts)
+
+`/mailbox`, `/mailbox/server` and `/node` are independent of the Next-oriented
+runtime above: they take an explicit config and Supabase client instead of the
+`configureMailappRuntime()` global, so they work in any Node host (Vercel
+functions, Express, Hono).
+
+Split by environment:
+
+| Entrypoint | Safe in the browser | Contents |
+| --- | --- | --- |
+| `@pynkstudio/mailapp/mailbox` | yes | config, address, display, search, message-id |
+| `@pynkstudio/mailapp/mailbox/server` | no | `node:crypto`, Resend, DB orchestration |
+| `@pynkstudio/mailapp/node` | no | `(req, res)` handlers + helpers |
+
+Importing `/mailbox/server` from client code pulls in `node:crypto` and will fail
+to bundle — use `/mailbox` there.
+
+Declare the mailbox once:
+
+```ts
+// src/server/mail-config.ts
+import { resolveMailboxConfig } from "@pynkstudio/mailapp/mailbox";
+
+export const mailboxConfig = resolveMailboxConfig({
+  ordinaryDomain: "example.it",
+  automaticDomain: "mail.example.it",
+  ordinaryBrand: "ordinary",
+  automaticBrand: "automatic",
+  fromOptions: [
+    { id: "hello", label: "Hello", from: "Brand <hello@example.it>", brand: "ordinary" },
+  ],
+  messageUrl: (id) => (id ? `/admin/mail?message=${encodeURIComponent(id)}` : "/admin/mail"),
+});
+```
+
+Table names, the role-check RPC, the alias-refresh RPC, search locale, page size
+and the attachment limit all have defaults and are overridable — see
+`MailboxInput` in `src/mailbox/config.ts`.
+
+Then build the context and mount the handlers:
+
+```ts
+// src/server/mail-context.ts
+import type { MailboxNodeContext } from "@pynkstudio/mailapp/node";
+import webpush from "web-push";
+import { mailboxConfig } from "./mail-config.js";
+
+export const mailContext: MailboxNodeContext = {
+  config: mailboxConfig,
+  createServiceClient,           // service-role Supabase client
+  getUserFromToken,              // bearer token -> user | null
+  resendApiKey: () => process.env.RESEND_API_KEY,
+  webhookSecret: () => process.env.RESEND_WEBHOOK_SECRET,
+  push: {
+    // web-push rejects with `statusCode`, which is what prunes dead endpoints
+    send: (target, payload) => webpush.sendNotification(target, payload, { TTL: 300, vapidDetails }),
+  },
+};
+```
+
+```ts
+// api/email/inbox.ts
+import { createInboxHandler } from "@pynkstudio/mailapp/node";
+import { mailContext } from "../../src/server/mail-context.js";
+
+export default createInboxHandler(mailContext);
+```
+
+Available factories: `createInboxHandler`, `createSendHandler`,
+`createMessageActionHandler`, `createAttachmentHandler`,
+`createInboundWebhookHandler`.
+
+The push transport is injected, so the package depends on neither `web-push` nor
+`@supabase/supabase-js`. Omit `push` and notifications are skipped entirely.
 
 ## Next.js Routes
 

@@ -51,11 +51,40 @@ Treat these exports as public API:
 - `@pynkstudio/mailapp/next/routes/signature`
 - `@pynkstudio/mailapp/next/routes/inbound-webhook`
 - `@pynkstudio/mailapp/supabase`
+- `@pynkstudio/mailapp/mailbox`
+- `@pynkstudio/mailapp/mailbox/server`
+- `@pynkstudio/mailapp/node`
 - `@pynkstudio/mailapp/migrations/*`
 
 Do not remove or rename exports without a major version bump and a consumer migration plan.
 
 Prefer optional additions over breaking changes.
+
+## Two Runtimes
+
+There are two independent wiring styles. Do not mix them.
+
+1. **Next runtime** (`/react`, `/email`, `/server`, `/next`) — Menuary. Depends on
+   the `configureMailappRuntime()` global and the multi-tenant schema.
+2. **Mailbox runtime** (`/mailbox`, `/mailbox/server`, `/node`) — added in `0.4.0`,
+   extracted from the BITE project. No globals: every function takes an explicit
+   `MailboxConfig` and a Supabase client. Works in any Node host.
+
+Rules for the mailbox runtime:
+
+- **No project values in code.** Domains, brands, table names, RPC names, locale,
+  page size and URL shapes all come from `MailboxConfig`. If something project
+  specific is needed, add an optional field with a default — do not inline it.
+- **Keep the browser/server split.** `src/mailbox/index.ts` must stay importable
+  from client code: no `node:*`, no `fetch` to Resend, no DB access. Anything else
+  belongs behind `src/mailbox/server.ts`.
+- **Inject transports.** Supabase and `web-push` are typed structurally and passed
+  in, so the package needs neither as a dependency. Keep it that way.
+- **Use explicit `.js` extensions on relative imports.** `tsc` emits specifiers
+  verbatim and this runtime is loaded directly by Node ESM, which does not resolve
+  extensionless paths. Older files under `src/email/` and `src/next/` still have
+  extensionless imports; they only work because Next bundles them. Do not copy
+  that pattern, and prefer fixing those files when you touch them.
 
 ## Multi-Tenant And Multi-Vertical Rules
 
@@ -132,7 +161,17 @@ Before finishing changes, run:
 
 ```bash
 npm run typecheck
+npm run test
 npm run build
+```
+
+Tests live in `src/**/__tests__/` and are excluded from `dist` by `tsconfig.json`.
+
+After building, confirm the new entrypoints still resolve under plain Node ESM —
+this is what catches an extensionless relative import that `tsc` accepted:
+
+```bash
+node --input-type=module -e 'import("./dist/mailbox/server.js").then(() => console.log("ok"))'
 ```
 
 For route or runtime changes, also verify at least one consumer app builds after updating to the new tag.
