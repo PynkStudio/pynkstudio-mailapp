@@ -10,7 +10,7 @@
  */
 
 import { parseEmailAddress } from "../core/index.js";
-import { detectMailBrand, normalizeAddress } from "./address.js";
+import { detectMailBrand, isOwnMailbox, normalizeAddress } from "./address.js";
 import { resolveMailAssignment } from "./assignment.js";
 import type { MailboxConfig } from "./config.js";
 import type { MailboxDb } from "./db.js";
@@ -104,6 +104,14 @@ export async function handleResendWebhookEvent(
     const from = String(content?.from ?? data.from ?? "");
     const to = content?.to?.length ? content.to : asStringArray(data.to);
     if (!from || to.length === 0) return { kind: "error", error: "missing_from_to" };
+
+    // Resend delivers inbound webhooks per-account, not per-domain: an account
+    // hosting several projects' domains fires every inbound event at every
+    // project's endpoint. Drop anything not addressed to our own domains so a
+    // sibling project's mail never lands in this mailbox.
+    if (!to.some((address) => isOwnMailbox(config, address))) {
+      return { kind: "ignored" };
+    }
 
     const parsedFrom = parseEmailAddress(from);
     const headers = normalizeHeaders(content?.headers ?? data.headers);
