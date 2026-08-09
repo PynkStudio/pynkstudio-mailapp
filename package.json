@@ -1,6 +1,6 @@
 {
   "name": "@pynkstudio/mailapp",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Reusable mail application package for PynkStudio projects.",
   "private": false,
   "type": "module",
